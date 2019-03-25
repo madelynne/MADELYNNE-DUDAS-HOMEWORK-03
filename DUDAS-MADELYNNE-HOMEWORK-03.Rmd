@@ -1,0 +1,175 @@
+--
+title: "DUDAS-MADELYNNE-HOMEWORK-03"
+author: "madelynne"
+date: "March 22, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Problem 1
+
+Write a simple R function you call Z.prop.test(), that can perform one- or two-sample Z-tests for proportion data, using the following guidelines.
+
+Your function should take the following arguments: p1 and n1 (no default) representing the estimated proportion and sample size (e.g., based on your sample data); p2 and n2 (both defaulting to NULL) that contain a second sample’s proportion and sample size data in the event of a two-sample test; p0 (no default) as the expected value for the population proportion; and alternative (default “two.sided”) and conf.level (default 0.95), to be used in the same way as in the function t.test().
+When conducting a two-sample test, it should be p1 that is tested as being smaller or larger than p2 when alternative=“less” or alternative=“greater”, respectively, the same as in the use of x and y in the function t.test().
+The function should perform a one-sample Z-test using p1, n1, and p0 if either p2 or n2 (or both) is NULL.
+The function should contain a check for the rules of thumb we have talked about (n×π>5 and n×(1−π)>5) to ensure the validity of assuming the normal distribution in both the one- and two-sample settings. If this is violated, the function should still complete, but it should also print an appropriate warning message.
+The function should return a list containing the following elements: Z (the test statistic), P (the appropriate p value), and CI (the two-sided CI with respect to “conf.level” around p1 in the case of a one-sample test and around p2-p1 in the case of a two-sample test). For all test alternatives (“two.sided”, “greater”, “less”), calculate symmetric CIs based on quantiles of the normal distribution rather than worrying about calculating single-limit confidence bounds.
+```{r}
+v1 <- c (0,1,1,1,1,1,0,0,0,0,1,1,0) #first sample vector
+v2 <- c (0,1,1,10,0,0,0,1,0,1,1,0,0) #second sample vector
+
+  
+p1 <- sum (v1)/length(v1)#estimated proportion
+n1 <- length(v1)#sample size
+
+p2<-sum(v2)/length(v2)#second estimate porportion 
+n2<- length (v2)#second sample size 
+
+pp <- (sum(v1) + sum(v2))/(length(v1) + length(v2))
+p0<- 0.5# expected value for the population porportion -must be defined by user
+alternative <- "less" #"greater", "less", or "two.sided"
+conf.level <- 0.95 # default 0.95
+z.prop.test <- function (p1,n1,p2 = NULL,n2 = NULL,p0,alternative = "two.sided", conf.level = 0.95, pp)
+{
+  
+  if (is.null(p2)) {#I recognize that this only accounts for p2 and not n2 :(
+    z <-((p1-p0)/(sqrt(p0(1-p0)/n1)))# calcUlate z stat -one sample
+    pval <- 1- pnorm(z)# p value
+    utail <- qnorm(conf.level) # CIs
+    ltail <- qnorm(conf.level, lower.tail = FALSE)
+      if (((n1 * p0) + (n1*(1-p0))) >10){# rule of thumb test
+        stop ("z =", z, "P=", p, "CIs", ltail, ",", utail)
+      else
+        stop ("z =", z, "P=", p, "CIs", ltail, ",", utail,"error: sample is too small or expected proportion is too close to 1 or 0")
+      }
+    
+  else # two sample
+      z <- ((p2-p1-p0)/sqrt(pp*(1-pp)*((1/n1)+(1/n2))))
+      p.upper <- 1 - pnorm(z, lower.tail = TRUE)
+      p.lower <- pnorm(z, lower.tail = FALSE)  # two-tailed probability, so we add the upper and lower tails
+      pval <- p.upper + p.lower
+      utail <- qnorm(conf.level)
+      ltail <- qnorm(conf.level, lower.tail = FALSE)
+        
+        if (((n1 * p0) + (n1*(1-p0)) <10) {#for sample one
+          stop ("z =", z, "P=", p, "CIs", ltail, ",", utail,"error: sample 1 is too small or expected proportion is too close to 1 or 0")
+        if (((n2 * p0) + (n2*(1-p0)) <10) #for sample two
+          stop ("z =", z, "P=", p, "CIs", ltail, ",", utail,"error: sample 2 is too small or expected proportion is too close to 1 or 0")
+        else
+          stop ("z =", z, "P=", p, "CIs", ltail, ",", utail)
+      
+      }
+  }
+  
+}
+
+```
+## Problem 2
+
+The comparative primate dataset we have used from Kamilar and Cooper has in it a large number of variables related to life history and body size. For this exercise, the end aim is to fit a simple linear regression model to predict longevity (MaxLongevity_m) measured in months from species’ brain size (Brain_Size_Species_Mean) measured in grams. Do the following for both longevity~brain size and log(longevity)~log(brain size).
+
+Fit the regression model and, using {ggplot2}, produce a scatterplot with the fitted line superimposed upon the data. Append the the fitted model equation to your plot (HINT: use the function geom_text()).
+Identify and interpret the point estimate of the slope (β1), as well as the outcome of the test associated with the hypotheses H0: β1=0; HA: β1≠0. Also, find a 90% CI for the slope (β1) parameter.
+Using your model, add lines for the 90% confidence and prediction interval bands on the plot, and add a legend to differentiate between the lines.
+Produce a point estimate and associated 90% prediction interval for the longevity of a species whose brain weight is 800 gm. Do you trust the model to predict observations accurately for this value of the explanatory variable? Why or why not?
+Looking at your two models, which do you think is better? Why?
+
+```{r}
+library(ggplot2)
+library(readr)
+f <- "https://raw.githubusercontent.com/difiore/ADA-2019/master/KamilarAndCooperData.csv"
+d <- read_csv(f, col_names =TRUE)
+attach(d)
+head(d)
+
+#fit the regression model to variables as they are
+m <- lm(MaxLongevity_m ~ Brain_Size_Species_Mean, data = d)
+m
+m$coefficients#to see B1 and B0
+mdf <- coef(summary(m))
+mdf <- data.frame(unlist(mdf))#make small dataframe
+colnames(mdf) <- c("Est", "SE", "t", "p")
+mdf
+b1 <-mdf$Est[2]#slope
+b1
+b0 <-mdf$Est[1]#intercept
+b0
+me <- paste("y =", b1,"x+",b0, sep="")#model equation
+me
+summary(m)#to see p values for hypothesis testing
+
+#fit regression model to log of the variables
+mlog <- lm(log(MaxLongevity_m) ~ log(Brain_Size_Species_Mean), data = d)
+mlog
+mlog$coefficients# to see B1 and B0
+summary(mlog)# to see p values
+mlogdf <- coef(summary(mlog))
+mlogdf <- data.frame(unlist(mlogdf))#make small dataframe
+colnames(mlogdf) <- c("Est", "SE", "t", "p")
+mlogdf
+b1log <-mlogdf$Est[2]#slope
+b1log
+b0log <-mlogdf$Est[1]#intercept
+b0log
+mloge <- paste("y =", b1log,"x+",b0log, sep="")#model equation
+mloge
+
+#The slope (1.21 and logged 0.23) is signficantly different from 0, the null hypothesis is rejected the alternative hypothesis is supported. p < 0.05 for both models.
+
+
+
+#plot of regression model - variables as they are
+g <- ggplot(data = d, aes(x = MaxLongevity_m, y = Brain_Size_Species_Mean))
+g <- g + geom_point()
+g <- g + geom_smooth(method = "lm", formula = y ~ x, level = 0.90)#plots lm & CIs
+g2 <- g + annotate("text", x=300, y=450, label = me)#geom_text wasn't working for me
+g2
+#plot of regression model - log of variables
+glog <- ggplot(data = d, aes(x = log(MaxLongevity_m), y = log(Brain_Size_Species_Mean)))
+glog <- glog + geom_point()
+glog <- glog + geom_smooth(method = "lm", formula = y ~ x, level = 0.90)#plots lm & CIs
+glog2 <- glog + annotate("text", x=5.25, y=6, label = mloge)#to add equation to plot at point (5,6)
+glog2
+
+
+#calculate 90% CI
+upper <- b1 + qnorm(0.95, mean = 0, sd = 1) * mdf$SE[2]
+lower <- b1 + qnorm(0.05, mean = 0, sd = 1) * mdf$SE[2]  
+ci <- c(lower, upper)
+ci#90% CI
+
+#calculate 90% CI for logged variables
+upper <- b1log + qnorm(0.95, mean = 0, sd = 1) * mlogdf$SE[2]
+lower <- b1log + qnorm(0.05, mean = 0, sd = 1) * mlogdf$SE[2]  
+ci_log <- c(lower, upper)
+ci_log#90% CI
+
+#Prediction interval bands(doesn't currently work/not sure where I went wrong)
+mpre <- predict(m, newdata = data.frame(Brain_Size_Species_Mean = d$Brain_Size_Species_Mean), interval = "prediction", level = 0.90)
+df <- data.frame(cbind(df, mpre))
+names(df) <-  c("x", "y", "yhat", "CIfit", "CIlwr", "CIupr", "PIfit", "PIlwr", "PIupr")
+head(df)
+g2 <- g2 + geom_line(data = df, aes(x = x, y = PIlwr), colour = "red")
+g2 <- g2 + geom_line(data = df, aes(x = x, y = PIupr), colour = "red")
+g2
+
+#Prediction interval bands of log plot(doesn't currently work/not sure where I went wrong)
+mlogpre <- predict(mlog, newdata = data.frame(log(Brain_Size_Species_Mean) = log(d$Brain_Size_Species_Mean)), interval = "prediction", level = 0.90)
+df2 <- data.frame(cbind(df, mpre))
+names(df2) <-  c("x", "y", "yhat", "CIfit", "CIlwr", "CIupr", "PIfit", "PIlwr", "PIupr")
+head(df2)
+glog2 <- glog2 + geom_line(data = df2, aes(x = x, y = PIlwr), colour = "red")
+glog2 <- glog2 + geom_line(data = df2, aes(x = x, y = PIupr), colour = "red")
+glog2
+
+#Prediction for 800g
+egrams <- predict(m,newdata = data.frame(Brain_Size_Species_Mean = 800), interval = "prediction", level = 0.90)
+egrams# longevity prediction for 800 grams
+
+#No, I do not trust the model to predict observation accurately for this value because the value beyond the range of the sample for this variable.
+#I think the log model is better because more of the data lie within the prediction interval bands (probably if I could see them).
+```
